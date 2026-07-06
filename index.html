@@ -14,44 +14,48 @@
       <span class="topbar__mark">issi</span><span class="topbar__mark topbar__mark--accent">/screener</span>
     </div>
     <div class="topbar__actions">
-      <button id="btnManageIssi" class="btn btn--ghost">Kelola daftar ISSI</button>
+      <button id="btnOpenSignalModal" class="btn btn--primary">+ Tempel Sinyal</button>
+      <button id="btnManageIssi" class="btn btn--ghost">Kelola ISSI</button>
       <button id="btnRefresh" class="btn btn--ghost">Refresh</button>
     </div>
   </header>
 
   <main class="layout">
-    <section class="paste-panel">
-      <h1 class="paste-panel__title">Tempel sinyal Telegram</h1>
-      <p class="paste-panel__hint">Paste teks dari grup Zeta IDX Signal (dari desktop atau HP, format apapun bisa).</p>
-      <textarea id="rawInput" class="paste-panel__textarea" placeholder="🇮🇩 ZETA IDX STOCK SIGNAL 🇮🇩&#10;Saham: BBCA&#10;..."></textarea>
-      <div class="paste-panel__row">
-        <button id="btnParse" class="btn btn--primary">Parse &amp; Simpan</button>
-        <span id="parseStatus" class="paste-panel__status"></span>
-      </div>
-    </section>
-
     <section class="signals-panel">
       <div class="signals-panel__toolbar">
-        <div class="filter-group" id="filterHalal">
-          <button class="filter-chip filter-chip--active" data-filter="all">Semua</button>
-          <button class="filter-chip" data-filter="halal">Halal</button>
-          <button class="filter-chip" data-filter="non-halal">Non-halal</button>
-        </div>
+        <h1 class="signals-panel__title">Sinyal Halal</h1>
         <span id="signalCount" class="signals-panel__count"></span>
       </div>
       <div id="signalsGrid" class="signals-grid"></div>
-      <p id="emptyState" class="empty-state" hidden>Belum ada sinyal tersimpan. Tempel sinyal di panel kiri untuk mulai.</p>
+      <p id="emptyState" class="empty-state" hidden>Belum ada sinyal halal tersimpan. Klik "+ Tempel Sinyal" untuk mulai.</p>
     </section>
   </main>
 
+  <div id="signalModal" class="modal" hidden>
+    <div class="modal__card modal__card--wide">
+      <div class="modal__head">
+        <h2>Tempel sinyal Telegram</h2>
+        <button id="btnCloseSignalModal" class="modal__close" aria-label="Tutup">&times;</button>
+      </div>
+      <p class="modal__hint">Paste teks dari grup Zeta IDX Signal (dari desktop atau HP, format apapun bisa).</p>
+      <textarea id="rawInput" class="modal__textarea modal__textarea--tall" placeholder="🇮🇩 ZETA IDX STOCK SIGNAL 🇮🇩&#10;Saham: BBCA&#10;..."></textarea>
+      <div class="modal__row">
+        <button id="btnParse" class="btn btn--primary">Parse &amp; Simpan</button>
+      </div>
+      <div id="parseResult" class="parse-result"></div>
+    </div>
+  </div>
+
   <div id="issiModal" class="modal" hidden>
     <div class="modal__card">
-      <h2>Kelola daftar ISSI</h2>
+      <div class="modal__head">
+        <h2>Kelola daftar ISSI</h2>
+        <button id="btnCloseIssiModal" class="modal__close" aria-label="Tutup">&times;</button>
+      </div>
       <p class="modal__hint">Satu kode ticker per baris, atau dipisah koma.</p>
       <textarea id="issiInput" class="modal__textarea"></textarea>
       <div class="modal__row">
         <button id="btnSaveIssi" class="btn btn--primary">Simpan</button>
-        <button id="btnCloseModal" class="btn btn--ghost">Batal</button>
       </div>
       <span id="issiStatus" class="modal__status"></span>
     </div>
