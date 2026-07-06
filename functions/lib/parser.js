@@ -16,6 +16,17 @@ function matchOne(regex, text) {
 }
 
 /**
+ * Konversi "DD/MM/YYYY" + "HH:MM" (asumsi WIB / UTC+7, sesuai jam Telegram desktop)
+ * jadi ISO string UTC. Dipakai buat timestamp asli dari sinyal (bukan jam parsing).
+ */
+function indoDateTimeToIso(dateStr, timeStr) {
+  const [dd, mm, yyyy] = dateStr.split('/').map(Number);
+  const [hh, min] = timeStr.split(':').map(Number);
+  const utcMs = Date.UTC(yyyy, mm - 1, dd, hh - 7, min); // WIB -> UTC
+  return new Date(utcMs).toISOString();
+}
+
+/**
  * Ambil daftar baris "top buyer/seller" broker setelah header tertentu,
  * berhenti begitu ketemu baris yang bukan format broker atau baris kosong/emoji lain.
  */
@@ -161,7 +172,7 @@ function parseNews(block) {
 /**
  * Parse satu block sinyal (sudah dipotong per-delimiter) jadi object terstruktur.
  */
-function parseOneSignal(block) {
+function parseOneSignal(block, signalTimestamp) {
   const ticker = matchOne(/Saham:\s*(\S+)/, block);
   const signalType = matchOne(/Signal:\s*(\S+)/, block);
   if (!ticker || !signalType) return null; // field wajib, kalau tidak ada berarti bukan block valid
@@ -175,6 +186,7 @@ function parseOneSignal(block) {
   return {
     ticker: ticker[1],
     signalType: signalType[1],
+    signalTimestamp, // dari header "[DD/MM/YYYY HH:MM]" kalau ada, kalau tidak fallback ke jam parsing
     confidence: parseConfidence(block),
     entryPrice: toNumber(entry?.[1]),
     tp1: tp1 ? { price: toNumber(tp1[1]), pct: tp1[2] } : null,
@@ -196,14 +208,31 @@ function parseOneSignal(block) {
 /**
  * Entry point: terima seluruh teks paste-an Telegram (bisa berisi banyak sinyal),
  * kembalikan array of parsed signal objects.
+ *
+ * Timestamp per-sinyal: kalau ada header "[DD/MM/YYYY HH:MM] Zeta IDX Signal:"
+ * (format Telegram Desktop), dipakai sebagai signalTimestamp. Kalau nggak ada
+ * (format Telegram Mobile, biasanya nggak nyertain jam per-pesan), fallback ke
+ * jam saat parsing dilakukan ("jam posting").
  */
 function parseSignals(rawText) {
   if (!rawText || typeof rawText !== 'string') return [];
 
-  const parts = rawText.split(SIGNAL_DELIMITER).slice(1); // slice(1) buang teks sebelum sinyal pertama
+  const now = new Date().toISOString();
+  const headerRe = /(?:\[(\d{2}\/\d{2}\/\d{4}) (\d{2}:\d{2})\]\s*)?(?:Zeta IDX Signal:\s*)?🇮🇩 ZETA IDX STOCK SIGNAL 🇮🇩/g;
+
+  const matches = [...rawText.matchAll(headerRe)];
   const results = [];
-  for (const part of parts) {
-    const parsed = parseOneSignal(part);
+
+  for (let i = 0; i < matches.length; i++) {
+    const m = matches[i];
+    const blockStart = m.index + m[0].length;
+    const blockEnd = i + 1 < matches.length ? matches[i + 1].index : rawText.length;
+    const block = rawText.slice(blockStart, blockEnd);
+
+    const [, dateStr, timeStr] = m;
+    const signalTimestamp = dateStr && timeStr ? indoDateTimeToIso(dateStr, timeStr) : now;
+
+    const parsed = parseOneSignal(block, signalTimestamp);
     if (parsed) results.push(parsed);
   }
   return results;
