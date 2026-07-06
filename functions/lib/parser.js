@@ -16,13 +16,14 @@ function matchOne(regex, text) {
 }
 
 /**
- * Konversi "DD/MM/YYYY" + "HH:MM" (asumsi WIB / UTC+7, sesuai jam Telegram desktop)
- * jadi ISO string UTC. Dipakai buat timestamp asli dari sinyal (bukan jam parsing).
+ * Konversi "DD/MM/YYYY" + "HH:MM" (asumsi WITA / UTC+8, sesuai jam device Telegram
+ * desktop kamu) jadi ISO string UTC. Dipakai buat timestamp asli dari sinyal
+ * (bukan jam parsing).
  */
 function indoDateTimeToIso(dateStr, timeStr) {
   const [dd, mm, yyyy] = dateStr.split('/').map(Number);
   const [hh, min] = timeStr.split(':').map(Number);
-  const utcMs = Date.UTC(yyyy, mm - 1, dd, hh - 7, min); // WIB -> UTC
+  const utcMs = Date.UTC(yyyy, mm - 1, dd, hh - 8, min); // WITA -> UTC
   return new Date(utcMs).toISOString();
 }
 
