@@ -160,7 +160,7 @@ async function listSignals(env, max = 50) {
   const body = {
     structuredQuery: {
       from: [{ collectionId: 'signals' }],
-      orderBy: [{ field: { fieldPath: 'created_at' }, direction: 'DESCENDING' }],
+      orderBy: [{ field: { fieldPath: 'signalTimestamp' }, direction: 'DESCENDING' }],
       limit: max,
     },
   };
