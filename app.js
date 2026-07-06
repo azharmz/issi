@@ -67,6 +67,18 @@ function pctClass(pct) {
   return pct.trim().startsWith('-') ? 'pct-neg' : 'pct-pos';
 }
 
+function formatTimestamp(iso) {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  return d.toLocaleString('id-ID', {
+    timeZone: 'Asia/Jakarta',
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  }) + ' WIB';
+}
+
 function bandarColor(bandarmology) {
   const label = bandarmology?.sinyalBandar?.label?.toUpperCase();
   if (label === 'BUY') return 'var(--accent-halal)';
@@ -112,7 +124,10 @@ function renderCard(signal) {
   card.innerHTML = `
     <div class="card__head">
       <div class="card__ticker">${signal.ticker} <span class="badge-halal">HALAL</span></div>
-      <div class="card__confidence">${confidenceText}</div>
+      <div class="card__meta">
+        <div class="card__confidence">${confidenceText}</div>
+        <div class="card__timestamp">${formatTimestamp(signal.signalTimestamp)}</div>
+      </div>
     </div>
     <div class="card__prices">
       <div class="price-block">
