@@ -71,12 +71,12 @@ function formatTimestamp(iso) {
   if (!iso) return '-';
   const d = new Date(iso);
   return d.toLocaleString('id-ID', {
-    timeZone: 'Asia/Jakarta',
+    timeZone: 'Asia/Makassar',
     day: '2-digit',
     month: 'short',
     hour: '2-digit',
     minute: '2-digit',
-  }) + ' WIB';
+  }) + ' WITA';
 }
 
 function bandarColor(bandarmology) {
