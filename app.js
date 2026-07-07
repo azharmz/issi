@@ -10,6 +10,7 @@ const els = {
   signalsGrid: document.getElementById('signalsGrid'),
   signalCount: document.getElementById('signalCount'),
   emptyState: document.getElementById('emptyState'),
+  filterHalal: document.getElementById('filterHalal'),
 
   btnManageIssi: document.getElementById('btnManageIssi'),
   issiModal: document.getElementById('issiModal'),
@@ -20,6 +21,7 @@ const els = {
 };
 
 let currentSignals = [];
+let currentFilter = 'halal'; // default tetap halal, tapi bisa diganti buat riset
 let issiListEmpty = false;
 
 const ADMIN_KEY_STORAGE = 'idx_issi_admin_key';
@@ -88,6 +90,9 @@ function bandarColor(bandarmology) {
 
 function renderCard(signal) {
   const barColor = bandarColor(signal.bandarmology);
+  const halalBadge = signal.isHalal
+    ? '<span class="badge-halal">HALAL</span>'
+    : '<span class="badge-nonhalal">NON-HALAL</span>';
 
   const confidenceText = signal.confidence
     ? `${signal.confidence.emoji} ${signal.confidence.score}/10 · ${signal.confidence.label}`
@@ -123,7 +128,10 @@ function renderCard(signal) {
   card.style.setProperty('--bar-color', barColor);
   card.innerHTML = `
     <div class="card__head">
-      <div class="card__ticker">${signal.ticker} <span class="badge-halal">HALAL</span></div>
+      <div class="card__ticker">
+        <a href="https://stockbit.com/symbol/${signal.ticker}/chartbit" target="_blank" rel="noopener noreferrer" class="card__ticker-link">${signal.ticker}</a>
+        ${halalBadge}
+      </div>
       <div class="card__meta">
         <div class="card__confidence">${confidenceText}</div>
         <div class="card__timestamp">${formatTimestamp(signal.signalTimestamp)}</div>
@@ -165,21 +173,26 @@ function renderCard(signal) {
   return card;
 }
 
-// Grid utama HANYA menampilkan sinyal halal. Sinyal non-halal tetap tersimpan
-// di Firestore (untuk rekam jejak/audit), tapi cuma ditampilkan sekali sesaat
-// setelah parsing (lihat renderParseResult), bukan di grid ini.
+// Default tampilan: halal saja (fokus workflow harian). Tapi tetap bisa switch
+// ke "Non-halal" atau "Semua" untuk keperluan riset/analisis dataset - semua
+// sinyal (halal maupun non-halal) selalu tersimpan di Firestore ("never throw
+// away data"), filter ini cuma soal apa yang ditampilkan di grid.
 function renderSignals() {
-  const halalOnly = currentSignals.filter((s) => s.isHalal);
+  const filtered = currentSignals.filter((s) => {
+    if (currentFilter === 'halal') return s.isHalal;
+    if (currentFilter === 'non-halal') return !s.isHalal;
+    return true; // 'all'
+  });
 
   els.signalsGrid.innerHTML = '';
-  halalOnly.forEach((s) => els.signalsGrid.appendChild(renderCard(s)));
+  filtered.forEach((s) => els.signalsGrid.appendChild(renderCard(s)));
 
-  let countText = `${halalOnly.length} sinyal halal`;
+  let countText = `${filtered.length} sinyal`;
   if (issiListEmpty && currentSignals.length > 0) {
     countText += ' — ⚠️ daftar ISSI belum diisi, semua status default NON-HALAL';
   }
   els.signalCount.textContent = countText;
-  els.emptyState.hidden = halalOnly.length > 0;
+  els.emptyState.hidden = filtered.length > 0;
 }
 
 async function loadSignals() {
@@ -239,6 +252,14 @@ els.btnParse.addEventListener('click', async () => {
 });
 
 els.btnRefresh.addEventListener('click', loadSignals);
+
+els.filterHalal.addEventListener('click', (e) => {
+  if (!e.target.dataset.filter) return;
+  currentFilter = e.target.dataset.filter;
+  [...els.filterHalal.children].forEach((c) => c.classList.remove('filter-chip--active'));
+  e.target.classList.add('filter-chip--active');
+  renderSignals();
+});
 
 // --- Event: buka/tutup modal Kelola ISSI ---
 els.btnManageIssi.addEventListener('click', async () => {
