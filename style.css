@@ -81,6 +81,23 @@ body {
   font-size: 18px;
   margin: 0;
 }
+.filter-group { display: flex; gap: 6px; }
+.filter-chip {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.filter-chip--active {
+  background: var(--surface-raised);
+  color: var(--text);
+  border-color: var(--accent-halal);
+}
 .signals-panel__count { color: var(--text-muted); font-size: 12px; }
 
 .signals-grid {
@@ -120,6 +137,15 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+.card__ticker-link {
+  color: var(--text);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--text-muted);
+}
+.card__ticker-link:hover {
+  color: var(--accent-halal);
+  border-bottom-color: var(--accent-halal);
 }
 .badge-halal {
   font-size: 10px;
