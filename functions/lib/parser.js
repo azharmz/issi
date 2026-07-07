@@ -6,8 +6,17 @@ const SIGNAL_DELIMITER = '🇮🇩 ZETA IDX STOCK SIGNAL 🇮🇩';
 
 function toNumber(str) {
   if (!str) return null;
-  const n = parseFloat(str.replace(/,/g, ''));
-  return Number.isNaN(n) ? null : n;
+  const m = String(str).trim().match(/^([+-]?[\d,.]+)\s*([KMkm])?$/);
+  if (!m) {
+    const n = parseFloat(String(str).replace(/,/g, ''));
+    return Number.isNaN(n) ? null : n;
+  }
+  let n = parseFloat(m[1].replace(/,/g, ''));
+  if (Number.isNaN(n)) return null;
+  const suffix = (m[2] || '').toUpperCase();
+  if (suffix === 'K') n *= 1_000;
+  if (suffix === 'M') n *= 1_000_000;
+  return n;
 }
 
 function matchOne(regex, text) {
@@ -38,12 +47,13 @@ function parseBrokerLines(block, headerEmoji) {
   const result = [];
   for (let i = startIdx + 1; i < lines.length; i++) {
     const line = lines[i].trim();
-    // Format: "XX [TAG] (Nama Sekuritas): +N,NNN lot"
-    const m = line.match(/^([A-Z]{2})\s*\[([^\]]+)\]\s*\(([^)]+)\):\s*\+?([\d,]+)\s*lot/);
+    // Format A: "XX [TAG] (Nama Sekuritas): +N,NNN lot"
+    // Format C (lebih lama): "XX (Nama Sekuritas): +N,NNN lot" - tanpa [TAG]
+    const m = line.match(/^([A-Z]{2})\s*(?:\[([^\]]+)\])?\s*\(([^)]+)\):\s*\+?([\d,.]+[KMkm]?)\s*lot/);
     if (!m) break;
     result.push({
       code: m[1],
-      tag: m[2],
+      tag: m[2] || null,
       broker: m[3],
       lot: toNumber(m[4]),
     });
@@ -128,7 +138,7 @@ function parsePattern(block) {
 }
 
 function parseBandarmology(block) {
-  const section = block.match(/🏦 Bandarmology:\s*(.*)/);
+  const section = block.match(/🏦 Bandarmology(?:\s*\([^)]*\))?:\s*(.*)/);
   if (!section) return null;
 
   const firstLine = section[1].trim();
@@ -139,7 +149,7 @@ function parseBandarmology(block) {
   }
 
   const sinyal = block.match(/Sinyal Bandar:\s*(\S+)\s*(\w+)/);
-  const smartMoney = block.match(/Smart Money Net:\s*([+-]?[\d,]+K?)\s*lot/);
+  const smartMoney = block.match(/Smart Money Net:\s*([+-]?[\d,.]+[KMkm]?)\s*lot/);
 
   return {
     status: null,
@@ -175,18 +185,35 @@ function parseNews(block) {
  */
 function parseOneSignal(block, signalTimestamp) {
   const ticker = matchOne(/Saham:\s*(\S+)/, block);
-  const signalType = matchOne(/Signal:\s*(\S+)/, block);
-  if (!ticker || !signalType) return null; // field wajib, kalau tidak ada berarti bukan block valid
+  const signalLine = matchOne(/Signal:\s*(.+)/, block);
+  if (!ticker || !signalLine) return null; // field wajib, kalau tidak ada berarti bukan block valid
+
+  // "Signal: WATCHLIST" (format A, tanpa emoji) ATAU "Signal: 🟢 BUY" / "Signal: 👀 WATCHLIST"
+  // (format B/C, ada emoji sebelum kata). Ambil token alfabet terakhir di baris itu.
+  const signalWords = signalLine[1].match(/[A-Za-z_]+/g);
+  const signalType = signalWords ? signalWords[signalWords.length - 1] : signalLine[1].trim();
 
   const entry = matchOne(/Entry Price:\s*Rp([\d,]+)/, block);
-  const tp1 = matchOne(/TP1:\s*Rp([\d,]+)\s*\(([+-][\d.]+%)\)/, block);
-  const slDefault = matchOne(/Default \(ATR\):\s*Rp([\d,]+)\s*\(([+-][\d.]+%)\)/, block);
+
+  // TP: format A punya "TP1: Rp.. (+X%)"; format B/C cuma "Take Profit: Rp.." tanpa %.
+  let tp1 = matchOne(/TP1:\s*Rp([\d,]+)\s*\(([+-][\d.]+%)\)/, block);
+  if (!tp1) {
+    const tpFallback = matchOne(/Take Profit:\s*Rp([\d,]+)/, block);
+    if (tpFallback) tp1 = [tpFallback[0], tpFallback[1], null];
+  }
+
+  // SL: format A punya 3-tier (Default/Moderat/Konservatif); format B/C cuma 1 angka "Stop Loss: Rp..".
+  let slDefault = matchOne(/Default \(ATR\):\s*Rp([\d,]+)\s*\(([+-][\d.]+%)\)/, block);
+  if (!slDefault) {
+    const slFallback = matchOne(/Stop Loss:\s*Rp([\d,]+)/, block);
+    if (slFallback) slDefault = [slFallback[0], slFallback[1], null];
+  }
   const slModerat = matchOne(/Moderat \(-5%\):\s*Rp([\d,]+)/, block);
   const slKonservatif = matchOne(/Konservatif \(-3%\):\s*Rp([\d,]+)/, block);
 
   return {
     ticker: ticker[1],
-    signalType: signalType[1],
+    signalType,
     signalTimestamp, // dari header "[DD/MM/YYYY HH:MM]" kalau ada, kalau tidak fallback ke jam parsing
     confidence: parseConfidence(block),
     entryPrice: toNumber(entry?.[1]),

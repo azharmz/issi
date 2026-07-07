@@ -23,11 +23,16 @@
   <main class="layout">
     <section class="signals-panel">
       <div class="signals-panel__toolbar">
-        <h1 class="signals-panel__title">Sinyal Halal</h1>
+        <h1 class="signals-panel__title">Sinyal</h1>
+        <div class="filter-group" id="filterHalal">
+          <button class="filter-chip filter-chip--active" data-filter="halal">Halal</button>
+          <button class="filter-chip" data-filter="non-halal">Non-halal</button>
+          <button class="filter-chip" data-filter="all">Semua (riset)</button>
+        </div>
         <span id="signalCount" class="signals-panel__count"></span>
       </div>
       <div id="signalsGrid" class="signals-grid"></div>
-      <p id="emptyState" class="empty-state" hidden>Belum ada sinyal halal tersimpan. Klik "+ Tempel Sinyal" untuk mulai.</p>
+      <p id="emptyState" class="empty-state" hidden>Belum ada sinyal tersimpan. Klik "+ Tempel Sinyal" untuk mulai.</p>
     </section>
   </main>
 
