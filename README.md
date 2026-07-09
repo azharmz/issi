@@ -128,13 +128,111 @@ sudah teramati antara Telegram Desktop dan Mobile:
 Kalau nanti ketemu variasi format baru yang belum ke-cover, cukup update regex
 di `parser.js` — struktur data lain nggak perlu berubah.
 
-## Roadmap (belum dikerjakan)
+## Product Vision (Trading Workflow Manager)
 
-- **Trading jurnal**: bot Zeta juga kirim sinyal konfirmasi (HIT TP/SL, dll). Rencana ke depan: parse sinyal konfirmasi ini, link ke sinyal awal by ticker, dan biarkan user input actual buy price manual → jadi trading journal (entry vs actual vs hasil).
+Project ini bukan sekadar penyimpan sinyal saham — tujuannya membantu seluruh
+proses trading pribadi: terima sinyal → riset → keputusan → eksekusi → catat
+transaksi → evaluasi. Dipakai **1 orang saja** (bukan SaaS/multi-user), jadi
+semua keputusan desain mengutamakan workflow pribadi, bukan skalabilitas.
+
+### Prinsip desain (berlaku untuk semua fitur baru)
+
+- **KISS** — kalau ada 2 solusi yang sama baiknya, pilih yang paling sederhana.
+- **Automation first** — user cuma isi data yang memang nggak bisa diketahui sistem (misal actual buy price). Semua perhitungan (P&L, %, dll) otomatis.
+- **Low friction** — makin sedikit klik/form/popup/pindah halaman, makin baik.
+- **Progressive journal** — catatan nggak harus lengkap dari awal, bisa ditambah belakangan.
+- **Never throw away data** — semua sinyal yang berhasil di-parse tetap disimpan (termasuk non-halal), filtering dilakukan di tampilan (UI), bukan di database. Ini alasan kenapa grid utama cuma nampilin sinyal halal, tapi non-halal tetap tersimpan di Firestore untuk riset masa depan (cari indikator/pola paling kuat, dsb).
+- **Optimize for my workflow** — bukan mikirin kebutuhan ribuan user, cukup workflow Azhar sendiri.
+
+### Stack (final, sudah diputuskan — jangan diganti tanpa alasan kuat)
+
+Cloudflare Pages + Pages Functions (vanilla JS, zero npm) + Firestore via REST
+API (Service Account JWT) + auth shared-secret (`ADMIN_KEY`). **Bukan**
+Next.js/Firebase Auth/Firebase Hosting — itu saran generik dari AI lain yang
+nggak punya konteks project ini, sudah dikonfirmasi ditolak.
+
+### Entity model (adaptasi dari diskusi, belum diimplementasi)
+
+Model konseptual yang dipakai untuk desain fitur ke depan — bukan berarti 4
+collection Firestore terpisah; strukturnya akan didesain sesederhana mungkin
+sesuai prinsip KISS di atas begitu masuk fase implementasi:
+
+- **Signal** — rekomendasi dari Zeta bot (ticker, entry, TP, SL, indikator). Sudah diimplementasi (collection `signals`).
+- **Signal Confirmation** — perkembangan status Signal dari bot (HIT TP1, HIT SL, Move SL, Cancel, Close). Belum diimplementasi — nunggu contoh raw text format konfirmasi dari user.
+- **Execution** — keputusan Azhar terhadap Signal (Ikut/Lewati/Pending/Filled/Not Filled). Belum diimplementasi.
+- **Journal** — transaksi nyata (entry, exit, lot, P&L otomatis; notes/emotion/strategy/screenshot opsional). Sumber utama analitik performa. Belum diimplementasi.
+- **Analytics** — win rate, average return, profit factor, drawdown, dst — semua dihitung dari Journal. Belum diimplementasi.
+
+Alur: `Signal → (Confirmation mengubah status) / (Execution → Filled → Journal)`.
+Confirmation tidak mengubah Journal, cuma status Signal. Journal bisa juga
+dibuat manual (tanpa lewat Signal/Execution) untuk transaksi di luar sinyal bot.
+
+### Dashboard concept (untuk fase mendatang)
+
+Dashboard idealnya bukan cuma daftar sinyal, tapi "daftar pekerjaan": sinyal
+baru yang perlu direspon, pending order, open position yang belum ditutup —
+bantu jawab "apa yang perlu saya lakukan berikutnya", bukan sekadar
+menampilkan data.
+
+## Roadmap (belum dikerjakan, urutan prioritas kasar)
+
+**Sudah selesai (Phase 1):** paste sinyal → auto-parse → halal cross-check →
+signal card di dashboard, timestamp per-sinyal, klik ticker → Stockbit chart,
+auth admin key.
+
+**Phase 2 — Signal Confirmation & Journal data sources (revisi setelah riset):**
+
+Temuan penting: bot **tidak pernah mengirim konfirmasi HIT SL** — cuma ada 3 jenis
+pesan konfirmasi yang teramati sejauh ini, semuanya untuk kasus profit:
+- Update sedang jalan (`📈 PROFIT TERUS NAIK!`) — posisi masih terbuka, ada Peak Tertinggi & trailing stop.
+- Kena TP tapi belum ditutup (`🏆 SIGNAL CONFIRMED — PROFIT!`) — ada `Status: ✅ TP1 HIT`, SL dinaikkan buat lock profit.
+- Posisi ditutup final (`🔒 PROFIT TERKUNCI!`) — ada `Status: ✅ Close di TP1`, ada Entry → Exit.
+
+Konsekuensi: Journal **nggak bisa 100% mengandalkan bot confirmation** dari
+Telegram, karena kasus rugi (kena SL) nggak pernah dikonfirmasi bot. Perlu
+sumber data tambahan:
+
+1. **Trade history dari signal provider** (di-scrape user jadi tabel/spreadsheet) — ini sumber paling otoritatif untuk Journal karena provider sendiri yang mencatat hasil akhir tiap trade, termasuk yang rugi. Rencana: import dari file tabel (CSV/XLSX), bukan parsing teks.
+2. **Export chat history Telegram** (format JSON resmi dari Telegram) — solusi untuk masalah timestamp: export JSON Telegram punya timestamp asli dari server per pesan (`date`/`date_unixtime`), jadi akurat terlepas dari originnya desktop atau HP. Parser regex yang sudah ada (untuk teks mentah) kemungkinan bisa dipakai lagi terhadap field teks tiap pesan di dalam JSON, tinggal tambah layer baca-JSON-dulu di depannya.
+
+Kedua sumber ini rencananya jadi **pelengkap**, bukan pengganti — cara paste
+manual yang sudah jalan sekarang tetap dipertahankan (KISS: jangan buang yang
+sudah berfungsi). Masih menunggu contoh file asli (mhtml trade history +
+JSON export Telegram) sebelum desain parser/importer-nya — belum dieksekusi.
+
+**Phase 3 — Execution:**
+- Tombol "Ikut" / "Lewati" di card.
+- Kalau "Ikut": status Pending → Filled / Not Filled.
+
+**Phase 4 — Journal:**
+- Kalau Filled: auto-create entry Journal (progressive — boleh belum lengkap).
+- Manual entry juga didukung (transaksi di luar sinyal bot).
+- Field wajib: entry, exit, lot (semua P&L dihitung otomatis). Field opsional: notes, emotion, strategy, screenshot.
+- Tab "Jurnal" terpisah dari dashboard utama — dashboard = scanning cepat "mana yang worth dilirik" (forward-looking), jurnal = evaluasi historis "gimana track record saya" (backward-looking). Beda mental model, sengaja dipisah.
+
+**Phase 5 — Analytics:** win rate, average return, profit factor, monthly return, holding time, drawdown, best/worst trade — semua dari data Journal.
+
+**Phase 6 — Research dashboard:** analisis dataset sinyal lengkap (halal + non-halal, karena semua tersimpan) untuk cari indikator/kombinasi/pola paling prediktif.
+
+**Phase 7 — AI review:** review otomatis performa & rekomendasi berdasarkan histori.
+
+### Catatan UX tertunda (sudah didiskusikan, belum dieksekusi)
+
+- **Password di depan, bukan di submit**: saat ini admin key diminta pas klik tombol "Parse & Simpan"/"Simpan" (submit). Harusnya: modal ("Tempel Sinyal" / "Kelola ISSI") **nggak kebuka sama sekali** kalau admin key belum benar — password diminta duluan sebelum modal terbuka, bukan pas submit di dalamnya. Selaras juga dengan catatan dokumen ChatGPT: field password auto-focus, Enter langsung submit, error tampil di dialog yang sama (bukan reset/tanya ulang dari nol).
+- **Ukuran menu topbar kegedean di HP**: tombol `+ Tempel Sinyal`, `Kelola ISSI`, `Refresh` di topbar perlu disesuaikan buat layar kecil (kemungkinan jadi icon-only atau ukuran font/padding lebih kecil di breakpoint mobile).
+
+## Catatan Firestore untuk fase mendatang
+
+Karena cuma dipakai 1 orang, desain collection untuk Confirmation/Execution/
+Journal harus tetap hemat read/write (bukan arsitektur enterprise). Begitu
+format Confirmation sudah jelas, perlu di-review lagi: apakah cukup jadi
+sub-collection di bawah tiap Signal document (hemat query, tapi Firestore
+Lite/REST nggak punya listener realtime jadi nggak masalah), dan apakah Spark
+Plan (gratis) masih cukup untuk volume read/write yang diproyeksikan.
 
 ## Catatan Keamanan
 
 `FIREBASE_PRIVATE_KEY` adalah kredensial admin penuh ke Firestore project ini.
 Jangan pernah commit file service account JSON ke git, dan jangan expose env
 var ini ke sisi client — semua pemanggilan Firestore hanya boleh lewat
-`functions/api/*.js` (server-side), bukan langsung dari `public/app.js`.
+`functions/api/*.js` (server-side), bukan langsung dari `app.js`.
